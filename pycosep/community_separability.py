@@ -473,9 +473,8 @@ def compute_separability(embedding, communities, positives=None, variant=Separab
         data_group_a = data_clustered[index_group_a]
         communities_group_a = communities_clustered[index_group_a]
         community_name_group_a = unique_communities[index_group_a]
-
         metadata[index_group_combination]["community_name_group_a"] = community_name_group_a
-        metadata[index_group_combination]["data_group_a"] = communities_group_a
+        metadata[index_group_combination]["data_group_a"] = data_group_a
 
         index_group_b = pairwise_group_combinations[index_group_combination][1]
         data_group_b = data_clustered[index_group_b]
