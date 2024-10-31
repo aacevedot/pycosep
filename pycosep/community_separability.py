@@ -301,7 +301,6 @@ def _compute_auc_aupr(labels, scores, positives):
     return auc, aupr
 
 
-# TODO: Set runtime settings correctly (e.g., default value)
 def compute_separability(embedding, communities, positives=None, variant=SeparabilityVariant.CPS, permutations=None,
                          runtime_settings=None):
     # sanity checks
