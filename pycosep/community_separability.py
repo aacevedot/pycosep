@@ -1,3 +1,4 @@
+import glob
 import itertools
 import os
 import subprocess
@@ -253,28 +254,31 @@ def _tsp_based_projection(pairwise_data, runtime_settings):
     if result.returncode != 0 and result.returncode != 255:
         raise RuntimeError(f"Error executing Concorde command: {result.stdout}")
 
-    # read Concorde solution file
+    # Process Concorde's solution file
     try:
         with open(file_sol_path, 'r') as file:
             # skip the first element (number of nodes)
-            loaded_tour = np.genfromtxt(file, skip_header=1, dtype=int, filling_values=np.nan)
+            lines = file.readlines()[1:]
+
+        loaded_tour = []
+        for line in lines:
+            nodes = [int(x) for x in line.split()]
+            loaded_tour.extend(nodes)
+
+        best_route = np.array(loaded_tour)
     except Exception as e:
         warnings.warn(f"Cannot process Concorde solution: {e}", RuntimeWarning)
-        return np.array([])
+        best_route = np.array([])
 
-    # Concorde TSP tour port-processing
-    best_route = loaded_tour[~np.isnan(loaded_tour)].astype(int)
-
-    # clean up TSP files
+    # clean up Concorde's related files
     if os.path.isfile(file_tsp_path):
-        os.remove(file_tsp_path)
-    if os.path.isfile(file_sol_path):
-        os.remove(file_sol_path)
+        # sometimes, Concorde creates more than just the TSP and Solution file
+        # hence, we clean up all files associated to the computed tour
+        pattern = os.path.join(runtime_settings.temp_path, f"{file_name}.*")
+        associated_files = glob.glob(pattern)
 
-    # TODO: Probably, not needed
-    # temp_file_sol = os.path.join(runtime_settings.root_path, file_name + '.sol')
-    # if os.path.isfile(temp_file_sol):
-    #    os.remove(temp_file_sol)
+        for associated_file in associated_files:
+            os.remove(associated_file)
 
     return best_route
 
