@@ -61,6 +61,8 @@ def _parallel_lines():
                           [6, 5],
                           [7, 6]])
 
-    communities = np.array([1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2])
-    
+    communities = np.array(
+        ['Group1', 'Group1', 'Group1', 'Group1', 'Group1', 'Group1', 'Group2', 'Group2', 'Group2', 'Group2', 'Group2',
+         'Group2'])
+
     return embedding, communities
