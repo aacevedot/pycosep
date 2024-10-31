@@ -5,6 +5,7 @@ import subprocess
 import time
 import uuid
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 
 import networkx as nx
 import numpy as np
@@ -20,12 +21,14 @@ from pycosep.separability_variants import SeparabilityVariant
 def _mode_distribution(data_clustered):
     mode_dist = np.empty([0])
     _, dims = data_clustered.shape
+
     for ix in range(dims):
         kde = stats.gaussian_kde(data_clustered[:, ix])
         xi = np.linspace(data_clustered.min(), data_clustered.max(), 100)
         p = kde(xi)
         ind = np.argmax([p])
         mode_dist = np.append(mode_dist, xi[ind])
+
     return mode_dist
 
 
@@ -33,7 +36,42 @@ def _find_positive_classes(sample_labels):
     positives, positions = np.unique(sample_labels, return_inverse=True)
     max_pos = np.bincount(positions).argmax()
     positives = np.delete(positives, max_pos)
+
     return positives
+
+
+def _extract_positive_class(communities_membership, positives):
+    positive_community_class = None
+    for o in range(len(positives)):
+        if np.any(communities_membership == positives[o]):
+            positive_community_class = positives[o]
+            break
+
+    if positive_community_class is None:
+        raise RuntimeError('impossible to set the current positive community class')
+
+    return positive_community_class
+
+
+def _compute_mann_whitney(scores_c1, scores_c2):
+    mw = stats.mannwhitneyu(scores_c1, scores_c2)  # method="exact"
+    return mw
+
+
+def _compute_auc_aupr(labels, scores, positives):
+    fpr, tpr, thresholds = metrics.roc_curve(labels, scores, pos_label=positives)
+    auc = metrics.auc(fpr, tpr)
+
+    if auc < 0.5:
+        auc = 1 - auc
+        flipped_scores = 2 * np.mean(scores) - scores
+        precision, recall, thresholds = metrics.precision_recall_curve(labels, flipped_scores, pos_label=positives)
+    else:
+        precision, recall, thresholds = metrics.precision_recall_curve(labels, scores, pos_label=positives)
+
+    aupr = metrics.auc(recall, precision)
+
+    return auc, aupr
 
 
 def _compute_mcc(labels, scores, positives):
@@ -283,22 +321,103 @@ def _tsp_based_projection(pairwise_data, runtime_settings):
     return best_route
 
 
-def _compute_mann_whitney(scores_c1, scores_c2):
-    mw = stats.mannwhitneyu(scores_c1, scores_c2)  # method="exact"
-    return mw
+def _randomize_communities(communities, total_permutations):
+    randomized = []
+    total_communities = len(communities)
+
+    for ix in range(total_permutations):
+        np.random.seed(ix)
+        positions = np.random.permutation(total_communities)
+        randomized.append(communities[positions])
+
+    return randomized
 
 
-def _compute_auc_aupr(labels, scores, positives):
-    fpr, tpr, thresholds = metrics.roc_curve(labels, scores, pos_label=positives)
-    auc = metrics.auc(fpr, tpr)
-    if auc < 0.5:
-        auc = 1 - auc
-        flipped_scores = 2 * np.mean(scores) - scores
-        precision, recall, thresholds = metrics.precision_recall_curve(labels, flipped_scores, pos_label=positives)
-    else:
-        precision, recall, thresholds = metrics.precision_recall_curve(labels, scores, pos_label=positives)
-    aupr = metrics.auc(recall, precision)
-    return auc, aupr
+def _compute_for_permutation(jx, permuted_communities_membership, scores, current_positive_class):
+    permuted_communities = permuted_communities_membership[jx]
+    auc, aupr = _compute_auc_aupr(permuted_communities, scores, current_positive_class)
+    mcc = _compute_mcc(permuted_communities, scores, current_positive_class)
+    return auc, aupr, mcc
+
+
+def _compute_separability_measures(permuted_communities_membership, scores, current_positive_class, total_permutations):
+    auc_values = np.zeros(total_permutations)
+    aupr_values = np.zeros(total_permutations)
+    mcc_values = np.zeros(total_permutations)
+
+    with ProcessPoolExecutor() as executor:
+        results = list(executor.map(
+            _compute_for_permutation,
+            range(total_permutations),
+            [permuted_communities_membership] * total_permutations,
+            [scores] * total_permutations,
+            [current_positive_class] * total_permutations
+        ))
+
+    for ix, (auc, aupr, mcc) in enumerate(results):
+        auc_values[ix] = auc
+        aupr_values[ix] = aupr
+        mcc_values[ix] = mcc
+
+    return auc_values, aupr_values, mcc_values
+
+
+def _set_permutation_results(permuted_values, original_value, total_permutations):
+    permutations = dict(
+        original_value=original_value,
+        permutations=permuted_values,
+        p_value=(np.sum(permuted_values >= original_value) + 1) / (total_permutations + 1),
+        mean=np.mean(permuted_values),
+        max=np.max(permuted_values),
+        min=np.min(permuted_values),
+        standard_deviation=np.std(permuted_values),
+        standard_error=np.std(permuted_values) / np.sqrt(total_permutations),
+    )
+
+    return permutations
+
+
+def _compute_permutations(previous_results, metadata, communities, positives, total_permutations):
+    total_pairwise_combinations = len(metadata)
+
+    auc_values = np.zeros((total_permutations, total_pairwise_combinations))
+    aupr_values = np.zeros((total_permutations, total_pairwise_combinations))
+    mcc_values = np.zeros((total_permutations, total_pairwise_combinations))
+
+    for ix in range(total_pairwise_combinations):
+        meta = metadata[ix]
+
+        communities_group_a = communities[np.isin(communities, meta['community_name_group_a'])]
+        communities_group_b = communities[np.isin(communities, meta['community_name_group_b'])]
+
+        communities_membership = np.concatenate([communities_group_a, communities_group_b])
+        permuted_communities_membership = _randomize_communities(communities_membership, total_permutations)
+        current_positive_class = _extract_positive_class(communities_membership, positives)
+
+        scores = meta['scores']
+
+        auc_values[:, ix], aupr_values[:, ix], mcc_values[:, ix] = _compute_separability_measures(
+            permuted_communities_membership, scores, current_positive_class, total_permutations
+        )
+
+    permutations = {}
+
+    corrected_auc_values = np.mean(auc_values, axis=1) / (1 + np.std(auc_values, axis=1))
+    auc_original_variant_value = previous_results['auc']
+    permutations['auc'] = _set_permutation_results(corrected_auc_values, auc_original_variant_value,
+                                                   total_permutations)
+
+    corrected_aupr_values = np.mean(aupr_values, axis=1) / (1 + np.std(aupr_values, axis=1))
+    aupr_original_variant_value = previous_results['aupr']
+    permutations['aupr'] = _set_permutation_results(corrected_aupr_values, aupr_original_variant_value,
+                                                    total_permutations)
+
+    corrected_mcc_values = np.mean(mcc_values, axis=1) / (1 + np.std(mcc_values, axis=1))
+    mcc_original_variant_value = previous_results['mcc']
+    permutations['mcc'] = _set_permutation_results(corrected_mcc_values, mcc_original_variant_value,
+                                                   total_permutations)
+
+    return permutations
 
 
 def compute_separability(embedding, communities, positives=None, variant=SeparabilityVariant.CPS, permutations=None,
@@ -408,15 +527,7 @@ def compute_separability(embedding, communities, positives=None, variant=Separab
 
         # construct community membership
         communities_membership = np.concatenate((communities_group_a, communities_group_b), axis=0)
-
-        current_positive_community_class = None
-        for o in range(len(positives)):
-            if np.any(communities_membership == positives[o]):
-                current_positive_community_class = positives[o]
-                break
-
-        if current_positive_community_class is None:
-            raise RuntimeError('impossible to set the current positive community class')
+        current_positive_community_class = _extract_positive_class(communities_membership, positives)
 
         auc, aupr = _compute_auc_aupr(communities_membership, scores, current_positive_community_class)
         auc_values = np.append(auc_values, auc)
@@ -442,6 +553,6 @@ def compute_separability(embedding, communities, positives=None, variant=Separab
     )
 
     if permutations is not None:
-        raise NotImplementedError("'permutations' handling not implemented yet")
+        measures = _compute_permutations(measures, metadata, communities, positives, permutations)
 
     return measures, metadata

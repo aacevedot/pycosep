@@ -2,7 +2,7 @@ import unittest
 
 from pycosep import community_separability
 from pycosep.separability_variants import SeparabilityVariant
-from tests.test_data import _half_kernel
+from tests.test_data import _half_kernel, _parallel_lines
 
 
 class TestCommunitySeparability(unittest.TestCase):
@@ -41,3 +41,17 @@ class TestCommunitySeparability(unittest.TestCase):
         self.assertEqual(0.6933, round(indices['auc'], 4))
         self.assertEqual(0.5228, round(indices['aupr'], 4))
         self.assertEqual(0.1833, round(indices['mcc'], 4))
+
+    def test_lpds_returns_expected_permutations_when_parallel_lines_data(self):
+        embedding, communities = _parallel_lines()
+        variant = SeparabilityVariant.LDPS
+        permutations = 1000
+
+        indices, _ = community_separability.compute_separability(
+            embedding=embedding,
+            communities=communities,
+            variant=variant,
+            permutations=permutations
+        )
+
+        self.assertIsNone(indices)
