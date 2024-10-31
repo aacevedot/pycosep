@@ -1,17 +1,19 @@
 import itertools
-import time
-import warnings
 import os
-import uuid
-import numpy as np
-import networkx as nx
 import subprocess
+import time
+import uuid
+import warnings
 
-from itertools import permutations
+import networkx as nx
+import numpy as np
 from scipy import stats
 from scipy.spatial.distance import pdist, squareform
 from sklearn import metrics
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+
+from pycosep.runtime_settings import RuntimeSettings
+from pycosep.separability_variants import SeparabilityVariant
 
 
 def _mode_distribution(data_clustered):
@@ -133,16 +135,16 @@ def _convert_tour_to_one_dimension(best_tour, pairwise_data, pairwise_communitie
     tour_graph.remove_edge(start_node, end_node)
 
     # compute the shortest path on the TSP projection path
-    s_path = nx.shortest_path(tour_graph, source=start_node, target=end_node)
+    s_path = nx.shortest_path(tour_graph, source=start_node, target=end_node, weight='weight')
 
     # compute scores: distance from each node to start_node on the TSP projection path
     scores = np.zeros(len(s_path))
     for ix, node in enumerate(s_path):
         try:
-            _, distance = nx.single_source_dijkstra(tour_graph, node, start_node)
-            scores[ix] = distance[start_node]
+            distance = nx.shortest_path_length(tour_graph, source=node, target=start_node, weight='weight')
+            scores[node] = distance
         except nx.NetworkXNoPath:
-            scores[ix] = 0
+            scores[node] = 0
 
     return scores, input_nodes, target_nodes, weights, start_node, end_node
 
@@ -194,22 +196,25 @@ def _lda_based_projection(pairwise_data, pairwise_samples):
 
 def _tsp_based_projection(pairwise_data, runtime_settings):
     # check if 'Concorde' path is specified in runtime settings
-    if 'concorde_path' not in runtime_settings:
+    if runtime_settings.concorde_path == '':
         raise ValueError("'Concorde' path not specified in runtime settings")
 
     # sanity check to avoid overriding TSP input and output files
     while True:
         short_uuid = str(uuid.uuid4())[-12:].replace('-', '')
+
         file_name = short_uuid
+        file_path = os.path.join(runtime_settings.temp_path, file_name)
 
-        file_path = os.path.join(runtime_settings['temp_path'], file_name)
-        file_tsp = file_path + '.tsp'
-        file_sol = file_path + '.sol'
+        file_tsp_name = file_name + '.tsp'
+        file_tsp_path = os.path.join(runtime_settings.temp_path, file_tsp_name)
+        file_sol_name = file_name + '.sol'
+        file_sol_path = os.path.join(runtime_settings.temp_path, file_sol_name)
 
-        if not (os.path.isfile(file_tsp) or os.path.isfile(file_sol)):
+        if not (os.path.isfile(file_tsp_path) or os.path.isfile(file_sol_path)):
             break
         else:
-            warnings.warn(f"file path '{file_path}' already exists. Retrying...", RuntimeWarning)
+            warnings.warn(f"TSP or Solution file '{file_path}' already exists. Retrying...", RuntimeWarning)
             time.sleep(0.25)
 
     total_nodes = pairwise_data.shape[0]
@@ -230,7 +235,7 @@ def _tsp_based_projection(pairwise_data, runtime_settings):
         offset -= 1
 
     # prepare TSP file
-    with open(file_tsp, 'w') as file:
+    with open(file_tsp_path, 'w') as file:
         file.write(f"NAME : TSPS Concorde\n")
         file.write(f"COMMENT : Scaling factor {scaling_factor}\n")
         file.write(f"TYPE : TSP\n")
@@ -242,37 +247,34 @@ def _tsp_based_projection(pairwise_data, runtime_settings):
         file.write(f"EOF\n")
 
     # execute Concorde
-    command = f"{runtime_settings['concorde_path']} -s 40 -x -o {file_sol} {file_tsp}"
-    status, cmd_out = subprocess.getstatusoutput(command)
-    if status not in [0, 255]:
-        raise RuntimeError(f"Error executing Concorde: {cmd_out}")
+    command = f"{runtime_settings.concorde_path} -s 40 -x -o {file_sol_name} {file_tsp_name}"
 
-    # read solution file
+    result = subprocess.run(command, cwd=runtime_settings.temp_path, capture_output=True, text=True, check=False)
+    if result.returncode != 0 and result.returncode != 255:
+        raise RuntimeError(f"Error executing Concorde command: {result.stdout}")
+
+    # read Concorde solution file
     try:
-        with open(file_sol, 'r') as file:
-            best_route = np.loadtxt(file, dtype=int)
-    except:
-        warnings.warn(f"Concorde solution '{file_sol}' not found. Output: {cmd_out}. Returning empty tour.",
-                      RuntimeWarning)
+        with open(file_sol_path, 'r') as file:
+            # skip the first element (number of nodes)
+            loaded_tour = np.genfromtxt(file, skip_header=1, dtype=int, filling_values=np.nan)
+    except Exception as e:
+        warnings.warn(f"Cannot process Concorde solution: {e}", RuntimeWarning)
         return np.array([])
 
     # Concorde TSP tour port-processing
-    # remove the first element (number of nodes)
-    best_route = best_route[1:]
-    # Concorde starts counting from 0, so increment nodes numering by 1
-    best_route += 1
-    # reshape the route
-    best_route = best_route.reshape(-1)
+    best_route = loaded_tour[~np.isnan(loaded_tour)].astype(int)
 
     # clean up TSP files
-    if os.path.isfile(file_tsp):
-        os.remove(file_tsp)
-    if os.path.isfile(file_sol):
-        os.remove(file_sol)
+    if os.path.isfile(file_tsp_path):
+        os.remove(file_tsp_path)
+    if os.path.isfile(file_sol_path):
+        os.remove(file_sol_path)
 
-    temp_file_sol = os.path.join(runtime_settings['root_path'], file_name + '.sol')
-    if os.path.isfile(temp_file_sol):
-        os.remove(temp_file_sol)
+    # TODO: Probably, not needed
+    # temp_file_sol = os.path.join(runtime_settings.root_path, file_name + '.sol')
+    # if os.path.isfile(temp_file_sol):
+    #    os.remove(temp_file_sol)
 
     return best_route
 
@@ -296,7 +298,8 @@ def _compute_auc_aupr(labels, scores, positives):
 
 
 # TODO: Set runtime settings correctly (e.g., default value)
-def compute_separability(embedding, communities, positives=None, variant='cps', runtime_settings=None):
+def compute_separability(embedding, communities, positives=None, variant=SeparabilityVariant.CPS, permutations=None,
+                         runtime_settings=None):
     # sanity checks
     if type(embedding) is not np.ndarray:
         raise TypeError("invalid input type: 'embedding' must be a numpy.ndarray")
@@ -309,14 +312,18 @@ def compute_separability(embedding, communities, positives=None, variant='cps', 
     elif type(positives) is not np.ndarray:
         raise TypeError("invalid input type: 'positives' must be a numpy.ndarray")
 
-    if variant != 'cps' and variant != 'lda' and variant != 'tsps':
-        warnings.warn("invalid variant: 'cps' will be used by default", SyntaxWarning)
-        variant = 'cps'
+    if not isinstance(variant, SeparabilityVariant):
+        warnings.warn(f"invalid separability variant '{variant}': 'cps' will be used by default", SyntaxWarning)
+        variant = SeparabilityVariant.CPS
 
     # check range of dimensions
     total_samples, total_dimensions = embedding.shape
     if len(communities) != total_samples:
         raise IndexError("the number of 'communities' does not match the number of rows in the provided 'embedding'")
+
+    # load default settings
+    if runtime_settings is None:
+        runtime_settings = RuntimeSettings()
 
     # extract communities
     unique_communities = np.unique(communities)
@@ -335,14 +342,16 @@ def compute_separability(embedding, communities, positives=None, variant='cps', 
     mcc_values = np.empty([0])
 
     pairwise_group_combinations = list(itertools.combinations(range(0, total_communities), 2))
+    total_pairwise_group_combinations = len(pairwise_group_combinations)
 
-    metadata = list()
+    metadata = [{} for _ in range(total_pairwise_group_combinations)]
 
-    for index_group_combination in range(len(pairwise_group_combinations)):
+    for index_group_combination in range(total_pairwise_group_combinations):
         index_group_a = pairwise_group_combinations[index_group_combination][0]
         data_group_a = data_clustered[index_group_a]
         communities_group_a = communities_clustered[index_group_a]
         community_name_group_a = unique_communities[index_group_a]
+
         metadata[index_group_combination]["community_name_group_a"] = community_name_group_a
         metadata[index_group_combination]["data_group_a"] = communities_group_a
 
@@ -354,18 +363,18 @@ def compute_separability(embedding, communities, positives=None, variant='cps', 
         metadata[index_group_combination]["data_group_b"] = data_group_b
 
         scores = None
-        if variant == 'cps':
+        if variant == SeparabilityVariant.CPS:
             center_formula = 'median'
             projected_points = _centroid_based_projection(data_group_a, data_group_b, center_formula)
             if not projected_points.size == 0:
                 scores = _convert_points_to_one_dimension(projected_points)
-        elif variant == 'ldps':
+        elif variant == SeparabilityVariant.LDPS:
             pairwise_data = np.vstack([data_group_a, data_group_b])
             pairwise_communities = np.append(communities_group_a, communities_group_b)
             projected_points = _lda_based_projection(pairwise_data, pairwise_communities)
             if not projected_points.size == 0:
                 scores = _convert_points_to_one_dimension(projected_points)
-        elif variant == 'tsps':
+        elif variant == SeparabilityVariant.TSPS:
             pairwise_data = np.vstack([data_group_a, data_group_b])
             metadata[index_group_combination]["pairwise_data"] = pairwise_data
 
@@ -389,9 +398,9 @@ def compute_separability(embedding, communities, positives=None, variant='cps', 
         metadata[index_group_combination]["scores"] = scores
 
         if scores is None:
-            auc_values[index_group_combination] = 0
-            aupr_values[index_group_combination] = 0
-            mcc_values[index_group_combination] = 0
+            auc_values = np.append(auc_values, 0)
+            aupr_values = np.append(auc_values, 0)
+            mcc_values = np.append(auc_values, 0)
             continue
 
         # construct community membership
