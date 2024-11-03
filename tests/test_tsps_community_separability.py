@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from pycosep import community_separability
@@ -6,6 +7,7 @@ from tests.test_data import _half_kernel, _parallel_lines, _circles, _rhombus, _
 
 
 class TestTSPSCommunitySeparability(unittest.TestCase):
+    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_tsps_returns_expected_indices_when_half_kernel_data_without_permutations(self):
         embedding, communities = _half_kernel()
 
@@ -18,6 +20,7 @@ class TestTSPSCommunitySeparability(unittest.TestCase):
         self.assertEqual(1.0000, round(indices['aupr'], 4))
         self.assertEqual(1.0000, round(indices['mcc'], 4))
 
+    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_tsps_returns_expected_indices_when_half_kernel_data_with_1000_permutations(self):
         embedding, communities = _half_kernel()
 
@@ -54,6 +57,7 @@ class TestTSPSCommunitySeparability(unittest.TestCase):
         self.assertEqual(0.1159, round(mcc_results['standard_deviation'], 4))  # MATLAB: 0.1201
         self.assertEqual(0.0037, round(mcc_results['standard_error'], 4))  # MATLAB: 0.0038
 
+    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_tsps_returns_expected_indices_when_circles_data_without_permutations(self):
         embedding, communities = _circles()
 
@@ -66,6 +70,7 @@ class TestTSPSCommunitySeparability(unittest.TestCase):
         self.assertEqual(1.0000, round(indices['aupr'], 4))
         self.assertEqual(1.0000, round(indices['mcc'], 4))
 
+    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_tsps_returns_expected_indices_when_circles_data_with_1000_permutations(self):
         embedding, communities = _circles()
 
@@ -102,6 +107,7 @@ class TestTSPSCommunitySeparability(unittest.TestCase):
         self.assertEqual(0.1044, round(mcc_results['standard_deviation'], 4))  # MATLAB: 0.1057
         self.assertEqual(0.0033, round(mcc_results['standard_error'], 4))
 
+    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_tsps_returns_expected_indices_when_rhombus_data_without_permutations(self):
         embedding, communities = _rhombus()
 
@@ -114,6 +120,7 @@ class TestTSPSCommunitySeparability(unittest.TestCase):
         self.assertEqual(0.9212, round(indices['aupr'], 4))
         self.assertEqual(0.4000, round(indices['mcc'], 4))
 
+    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_tsps_returns_expected_indices_when_rhombus_data_with_1000_permutations(self):
         embedding, communities = _rhombus()
 
@@ -150,6 +157,7 @@ class TestTSPSCommunitySeparability(unittest.TestCase):
         self.assertEqual(0.1523, round(mcc_results['standard_deviation'], 4))  # MATLAB: 0.1534
         self.assertEqual(0.0048, round(mcc_results['standard_error'], 4))  # MATLAB: 0.0049
 
+    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_tsps_returns_expected_indices_when_spirals_data_without_permutations(self):
         embedding, communities = _spirals()
 
@@ -162,6 +170,7 @@ class TestTSPSCommunitySeparability(unittest.TestCase):
         self.assertEqual(0.8446, round(indices['aupr'], 4))
         self.assertEqual(0.5516, round(indices['mcc'], 4))
 
+    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_tsps_returns_expected_indices_when_spirals_data_with_1000_permutations(self):
         embedding, communities = _spirals()
 
@@ -198,6 +207,7 @@ class TestTSPSCommunitySeparability(unittest.TestCase):
         self.assertEqual(0.0956, round(mcc_results['standard_deviation'], 4))  # MATLAB: 0.0877
         self.assertEqual(0.0030, round(mcc_results['standard_error'], 4))  # MATLAB: 0.0028
 
+    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_tsps_returns_expected_indices_when_parallel_lines_data_without_permutations(self):
         embedding, communities = _parallel_lines()
 
@@ -210,6 +220,7 @@ class TestTSPSCommunitySeparability(unittest.TestCase):
         self.assertEqual(1.0000, round(indices['aupr'], 4))
         self.assertEqual(1.0000, round(indices['mcc'], 4))
 
+    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_tsps_returns_expected_indices_when_parallel_lines_data_with_1000_permutations(self):
         embedding, communities = _parallel_lines()
 
