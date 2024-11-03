@@ -14,7 +14,7 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn import metrics
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
-from pycosep.runtime_settings import RuntimeSettings
+from pycosep.concorde_settings import ConcordeSettings
 from pycosep.separability_variants import SeparabilityVariant
 
 
@@ -233,9 +233,9 @@ def _lda_based_projection(pairwise_data, pairwise_samples):
     return projection
 
 
-def _tsp_based_projection(pairwise_data, runtime_settings):
+def _tsp_based_projection(pairwise_data, concorde_settings):
     # check if 'Concorde' path is specified in runtime settings
-    if runtime_settings.concorde_path == '':
+    if concorde_settings.concorde_path == '':
         raise ValueError("'Concorde' path not specified in runtime settings")
 
     # sanity check to avoid overriding TSP input and output files
@@ -243,12 +243,12 @@ def _tsp_based_projection(pairwise_data, runtime_settings):
         short_uuid = str(uuid.uuid4())[-12:].replace('-', '')
 
         file_name = short_uuid
-        file_path = os.path.join(runtime_settings.temp_path, file_name)
+        file_path = os.path.join(concorde_settings.temp_path, file_name)
 
         file_tsp_name = file_name + '.tsp'
-        file_tsp_path = os.path.join(runtime_settings.temp_path, file_tsp_name)
+        file_tsp_path = os.path.join(concorde_settings.temp_path, file_tsp_name)
         file_sol_name = file_name + '.sol'
-        file_sol_path = os.path.join(runtime_settings.temp_path, file_sol_name)
+        file_sol_path = os.path.join(concorde_settings.temp_path, file_sol_name)
 
         if not (os.path.isfile(file_tsp_path) or os.path.isfile(file_sol_path)):
             break
@@ -286,9 +286,9 @@ def _tsp_based_projection(pairwise_data, runtime_settings):
         file.write(f"EOF\n")
 
     # execute Concorde
-    command = f"{runtime_settings.concorde_path} -s 40 -x -o {file_sol_name} {file_tsp_name}"
+    command = f"{concorde_settings.concorde_path} -s 40 -x -o {file_sol_name} {file_tsp_name}"
 
-    result = subprocess.run(command, cwd=runtime_settings.temp_path, capture_output=True, text=True, check=False)
+    result = subprocess.run(command, cwd=concorde_settings.temp_path, capture_output=True, text=True, check=False)
     if result.returncode != 0 and result.returncode != 255:
         raise RuntimeError(f"Error executing Concorde command: {result.stdout}")
 
@@ -312,7 +312,7 @@ def _tsp_based_projection(pairwise_data, runtime_settings):
     if os.path.isfile(file_tsp_path):
         # sometimes, Concorde creates more than just the TSP and Solution file
         # hence, we clean up all files associated to the computed tour
-        pattern = os.path.join(runtime_settings.temp_path, f"{file_name}.*")
+        pattern = os.path.join(concorde_settings.temp_path, f"{file_name}.*")
         associated_files = glob.glob(pattern)
 
         for associated_file in associated_files:
@@ -421,7 +421,7 @@ def _compute_permutations(previous_results, metadata, communities, positives, to
 
 
 def compute_separability(embedding, communities, positives=None, variant=SeparabilityVariant.CPS, permutations=None,
-                         runtime_settings=None):
+                         concorde_settings=None):
     """
     Compute all community separability indices
 
@@ -446,9 +446,9 @@ def compute_separability(embedding, communities, positives=None, variant=Separab
             - TSPS: travelling salesman projection separability
     :param permutations: int
         Number of iterations for the null model.
-    :param runtime_settings: RuntimeSettings
-        Community separability settings to use at runtime. For instance, path to temp artifacts and to
-        Concorde executable when using the TSPS variant.
+    :param concorde_settings: ConcordeSettings
+        Concorde settings to use at runtime. For instance, path to temp artifacts and to
+        Concorde executable. Only required when using the TSPS variant
     :return:
         indices: dict
             Dictionary containing all the computed community separability indices.
@@ -476,10 +476,6 @@ def compute_separability(embedding, communities, positives=None, variant=Separab
     total_samples, total_dimensions = embedding.shape
     if len(communities) != total_samples:
         raise IndexError("the number of 'communities' does not match the number of rows in the provided 'embedding'")
-
-    # load default settings
-    if runtime_settings is None:
-        runtime_settings = RuntimeSettings()
 
     # extract communities
     unique_communities = np.unique(communities)
@@ -530,13 +526,17 @@ def compute_separability(embedding, communities, positives=None, variant=Separab
             if not projected_points.size == 0:
                 scores = _convert_points_to_one_dimension(projected_points)
         elif variant == SeparabilityVariant.TSPS:
+            # load default settings
+            if concorde_settings is None:
+                concorde_settings = ConcordeSettings()  # default
+
             pairwise_data = np.vstack([data_group_a, data_group_b])
             metadata[index_group_combination]["pairwise_data"] = pairwise_data
 
             pairwise_communities = np.append(communities_group_a, communities_group_b)
             metadata[index_group_combination]["pairwise_communities"] = pairwise_communities
 
-            best_tour = _tsp_based_projection(pairwise_data, runtime_settings)
+            best_tour = _tsp_based_projection(pairwise_data, concorde_settings)
             metadata[index_group_combination]["best_tour"] = best_tour
 
             if not best_tour.size == 0:
