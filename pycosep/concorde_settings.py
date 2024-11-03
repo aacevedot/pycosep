@@ -2,7 +2,7 @@ import os
 import tempfile
 
 
-class RuntimeSettings:
+class ConcordeSettings:
     def __init__(self, concorde_path=None):
         if concorde_path is not None:
             self.concorde_path = concorde_path
