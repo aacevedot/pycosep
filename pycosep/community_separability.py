@@ -422,6 +422,40 @@ def _compute_permutations(previous_results, metadata, communities, positives, to
 
 def compute_separability(embedding, communities, positives=None, variant=SeparabilityVariant.CPS, permutations=None,
                          runtime_settings=None):
+    """
+    Compute all community separability indices
+
+    :param embedding: numpy.ndarray
+        Data in the form of an N*M matrix where sample values are placed in the rows and
+        the feature/variable values are placed in the columns. For instance, this is the output obtained
+        after applying a network embedding algorithm.
+    :param communities: numpy.ndarray
+        List of community labels (e.g., ground truth groups/classes) of the data.
+    :param positives: numpy.ndarray
+        List of positive community labels. Depending on the study, positive classes are usually ranked as
+        the labels for which a particular prediction is desired.
+        For instance:
+            - sick patients (positive class) versus controls (negative class)
+            - burnout (positive class), depression (positive class), versus control (negative class)
+        If not provided, then the communities with the lower number of samples will be selected as
+        positive classes.
+    :param variant: SeparabilityVariant
+        Community separability variant to use for computing the separability. This is one of:
+            - CPS: centroid projection separability
+            - LDPS: linear discriminant projection separability
+            - TSPS: travelling salesman projection separability
+    :param permutations: int
+        Number of iterations for the null model.
+    :param runtime_settings: RuntimeSettings
+        Community separability settings to use at runtime. For instance, path to temp artifacts and to
+        Concorde executable when using the TSPS variant.
+    :return:
+        indices: dict
+            Dictionary containing all the computed community separability indices.
+        metadata: dict
+            Dictionary containing the metadata used to compute community separability indices.
+    """
+
     # sanity checks
     if type(embedding) is not np.ndarray:
         raise TypeError("invalid input type: 'embedding' must be a numpy.ndarray")
