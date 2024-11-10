@@ -13,6 +13,9 @@ jobs:
       matrix:
         os: [ "ubuntu-latest" ]
         python-version: [ "3.9" ]
+        include:
+          - os: ubuntu-latest
+            concorde-path: /usr/local/bin
 
     steps:
       - name: Checkout source
@@ -32,7 +35,19 @@ jobs:
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
+      - name: Install Concorde
+        run: |
+          wget --quiet https://www.math.uwaterloo.ca/tsp/concorde/downloads/codes/linux24/concorde.gz
+          gunzip concorde.gz
+          mv concorde ${{ matrix.concorde-path }}/
+
+      - name: Install linkern
+        run: |
+          wget --quiet https://www.math.uwaterloo.ca/tsp/concorde/downloads/codes/linux24/linkern.gz
+          gunzip linkern.gz
+          mv linkern ${{ matrix.concorde-path }}/
+
       - name: Run tests
-        env:
-          CI: "true"
-        run: pytest
+        run: |
+          chmod -R 755 ${{ matrix.concorde-path }}/
+          pytest

@@ -13,7 +13,6 @@ class TestConcordeSettings(unittest.TestCase):
         concorde_path = "/not/existing/path/to/concorde"
         self.assertRaises(RuntimeError, ConcordeSettings, concorde_path)
 
-    @unittest.skipIf(os.getenv("CI") == "true", "Skip test in CI environment")
     def test_concorde_settings_passes_when_default_settings(self):
         settings = ConcordeSettings()
         if os.name == 'nt':
