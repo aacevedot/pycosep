@@ -275,22 +275,23 @@ def _tsp_based_projection(pairwise_data, concorde_settings):
 
     # prepare TSP file
     with open(file_tsp_path, 'w') as file:
-        file.write(f"NAME : TSPS Concorde\n")
+        file.write("NAME : TSPS Concorde\n")
         file.write(f"COMMENT : Scaling factor {scaling_factor}\n")
-        file.write(f"TYPE : TSP\n")
+        file.write("TYPE : TSP\n")
         file.write(f"DIMENSION : {total_nodes}\n")
-        file.write(f"EDGE_WEIGHT_TYPE : EUC_2D\n")
-        file.write(f"NODE_COORD_SECTION\n")
+        file.write("EDGE_WEIGHT_TYPE : EUC_2D\n")
+        file.write("NODE_COORD_SECTION\n")
         for ix in range(total_nodes):
             file.write(f"{ix + 1} {scaled_embedding[ix, 0]} {scaled_embedding[ix, 1]}\n")
-        file.write(f"EOF\n")
+        file.write("EOF\n")
 
     # execute Concorde
     command = f"{concorde_settings.concorde_path} -s 40 -x -o {file_sol_name} {file_tsp_name}"
 
-    result = subprocess.run(command, cwd=concorde_settings.temp_path, capture_output=True, text=True, check=False)
+    result = subprocess.run(command, cwd=concorde_settings.temp_path, capture_output=True, text=True, check=False,
+                            shell=True)
     if result.returncode != 0 and result.returncode != 255:
-        raise RuntimeError(f"Error executing Concorde command: {result.stdout}")
+        raise RuntimeError(f"Error executing Concorde command:\t\n{result.stdout}\t\n{result.stderr}")
 
     # Process Concorde's solution file
     try:
@@ -540,8 +541,9 @@ def compute_separability(embedding, communities, positives=None, variant=Separab
             metadata[index_group_combination]["best_tour"] = best_tour
 
             if not best_tour.size == 0:
-                scores, source_nodes, target_nodes, edge_weights, cut_start_node, cut_end_node = _convert_tour_to_one_dimension(
-                    best_tour, pairwise_data, pairwise_communities)
+                separability_path = _convert_tour_to_one_dimension(best_tour, pairwise_data, pairwise_communities)
+                scores, source_nodes, target_nodes, edge_weights, cut_start_node, cut_end_node = separability_path
+
                 metadata[index_group_combination]["source_nodes"] = source_nodes
                 metadata[index_group_combination]["target_nodes"] = target_nodes
                 metadata[index_group_combination]["edge_weights"] = edge_weights

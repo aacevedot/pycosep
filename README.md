@@ -6,7 +6,7 @@
 
 ## Before starting
 
-This package requires [Concorde](https://www.math.uwaterloo.ca/tsp/concorde.html) to execute calculations. Check the [requirements](REQUIREMENTS.md) and follow the instructions to install this dependency in your operating system.
+This package requires [Concorde](https://www.math.uwaterloo.ca/tsp/concorde.html) to execute calculations. Check the [requirements](https://github.com/aacevedot/pycosep/blob/main/REQUIREMENTS.md) and follow the instructions to install this dependency in your operating system.
 
 ## Installation
 
@@ -72,13 +72,13 @@ index_permutations, _ = community_separability.compute_separability(
     permutations=permutations)
 
 auc_results = index_permutations['auc']
-print(f"AUC original value:  {auc_results['original_value']}")
-print(f"AUC p-value:  {auc_results['p_value']}")
-print(f"AUC mean:  {auc_results['mean']}")
-print(f"AUC max:  {auc_results['max']}")
-print(f"AUC min:  {auc_results['min']}")
-print(f"AUC standard_deviation:  {auc_results['standard_deviation']}")
-print(f"AUC standard_error:  {auc_results['standard_error']}")
+print(f"AUC original value: {auc_results['original_value']}")
+print(f"AUC p-value: {auc_results['p_value']}")
+print(f"AUC mean: {auc_results['mean']}")
+print(f"AUC max: {auc_results['max']}")
+print(f"AUC min: {auc_results['min']}")
+print(f"AUC standard_deviation: {auc_results['standard_deviation']}")
+print(f"AUC standard_error: {auc_results['standard_error']}")
 
 aupr_results = index_permutations['aupr']
 print(f"AUPR original value: {aupr_results['original_value']}")

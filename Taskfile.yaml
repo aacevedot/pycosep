@@ -1,0 +1,11 @@
+version: '3'
+
+tasks:
+  install:act:
+    desc: Install act to execute GitHub actions locally
+    platforms: [ windows ]
+    cmd: winget install nektos.act
+
+  workflow:integrate:
+    desc: Run integrate workflow
+    cmd: act -W '.github/workflows/integrate.yaml'
