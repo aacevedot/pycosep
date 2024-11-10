@@ -40,14 +40,14 @@ jobs:
           wget --quiet https://www.math.uwaterloo.ca/tsp/concorde/downloads/codes/linux24/concorde.gz
           gunzip concorde.gz
           mv concorde ${{ matrix.concorde-path }}/
+          sudo chmod +x ${{ matrix.concorde-path }}/concorde
 
       - name: Install linkern
         run: |
           wget --quiet https://www.math.uwaterloo.ca/tsp/concorde/downloads/codes/linux24/linkern.gz
           gunzip linkern.gz
           mv linkern ${{ matrix.concorde-path }}/
+          sudo chmod +x ${{ matrix.concorde-path }}/linkern
 
       - name: Run tests
-        run: |
-          chmod -R 755 ${{ matrix.concorde-path }}/
-          pytest
+        run: pytest
