@@ -275,15 +275,15 @@ def _tsp_based_projection(pairwise_data, concorde_settings):
 
     # prepare TSP file
     with open(file_tsp_path, 'w') as file:
-        file.write(f"NAME : TSPS Concorde\n")
+        file.write("NAME : TSPS Concorde\n")
         file.write(f"COMMENT : Scaling factor {scaling_factor}\n")
-        file.write(f"TYPE : TSP\n")
+        file.write("TYPE : TSP\n")
         file.write(f"DIMENSION : {total_nodes}\n")
-        file.write(f"EDGE_WEIGHT_TYPE : EUC_2D\n")
-        file.write(f"NODE_COORD_SECTION\n")
+        file.write("EDGE_WEIGHT_TYPE : EUC_2D\n")
+        file.write("NODE_COORD_SECTION\n")
         for ix in range(total_nodes):
             file.write(f"{ix + 1} {scaled_embedding[ix, 0]} {scaled_embedding[ix, 1]}\n")
-        file.write(f"EOF\n")
+        file.write("EOF\n")
 
     # execute Concorde
     command = f"{concorde_settings.concorde_path} -s 40 -x -o {file_sol_name} {file_tsp_name}"
