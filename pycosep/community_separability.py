@@ -5,7 +5,6 @@ import subprocess
 import time
 import uuid
 import warnings
-import sys
 from concurrent.futures import ProcessPoolExecutor
 
 import networkx as nx
