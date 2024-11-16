@@ -69,6 +69,11 @@ def _compute_auc_aupr(labels, scores, positives):
     else:
         precision, recall, thresholds = metrics.precision_recall_curve(labels, scores, pos_label=positives)
 
+    if precision[-2]==1:    # to equal the Matlab code
+        precision[-1]=1
+    else:
+        precision[-1]=0
+
     aupr = metrics.auc(recall, precision)
 
     return auc, aupr
@@ -212,11 +217,8 @@ def _centroid_based_projection(data_group_a, data_group_b, center_formula):
     centroids_line = _create_line_between_centroids(centroid_a, centroid_b)
     pairwise_data = np.vstack([data_group_a, data_group_b])
 
-    total_points, total_dimensions = np.shape(pairwise_data)
-    projection = np.empty([0, total_dimensions])
-    for ox in range(total_points):
-        projected_point = _project_point_on_line(pairwise_data[ox], centroids_line)
-        projection = np.vstack([projection, projected_point])
+    ab = centroids_line[1] - centroids_line[0]  # On large datasets it is much faster to use matrix multiplication than use a loop.
+    projection = np.matmul(pairwise_data - centroids_line[0], ab[:,np.newaxis]) / np.dot(ab, ab) * ab + centroids_line[0]
 
     return projection
 
@@ -327,8 +329,8 @@ def _randomize_communities(communities, total_permutations):
     total_communities = len(communities)
 
     for ix in range(total_permutations):
-        np.random.seed(ix)
-        positions = np.random.permutation(total_communities)
+        np.random.seed(ix+1)            # to equal the Matlab random permutation indices
+        positions = np.argsort(np.random.random((1,total_communities)))[0]
         randomized.append(communities[positions])
 
     return randomized
