@@ -69,6 +69,12 @@ def _compute_auc_aupr(labels, scores, positives):
     else:
         precision, recall, thresholds = metrics.precision_recall_curve(labels, scores, pos_label=positives)
 
+    # to maintain consistency with MATLAB results
+    if precision[-2] == 1:
+        precision[-1] = 1
+    else:
+        precision[-1] = 0
+
     aupr = metrics.auc(recall, precision)
 
     return auc, aupr
@@ -209,14 +215,11 @@ def _centroid_based_projection(data_group_a, data_group_b, center_formula):
     elif np.array_equal(centroid_a, centroid_b):
         raise RuntimeError('clusters have the same centroid: no line can be traced between them')
 
-    centroids_line = _create_line_between_centroids(centroid_a, centroid_b)
     pairwise_data = np.vstack([data_group_a, data_group_b])
 
-    total_points, total_dimensions = np.shape(pairwise_data)
-    projection = np.empty([0, total_dimensions])
-    for ox in range(total_points):
-        projected_point = _project_point_on_line(pairwise_data[ox], centroids_line)
-        projection = np.vstack([projection, projected_point])
+    # optimized for large datasets
+    ab = centroid_a - centroid_b
+    projection = np.matmul(pairwise_data - centroid_b, ab[:, np.newaxis]) / np.dot(ab, ab) * ab + centroid_b
 
     return projection
 
@@ -327,8 +330,10 @@ def _randomize_communities(communities, total_permutations):
     total_communities = len(communities)
 
     for ix in range(total_permutations):
-        np.random.seed(ix)
-        positions = np.random.permutation(total_communities)
+        # initialize seed with the same value as in MATLAB
+        np.random.seed(ix + 1)
+        rand_sequence = np.random.random((1, total_communities))
+        positions = np.argsort(rand_sequence)[0]  # first dimension holds the indices
         randomized.append(communities[positions])
 
     return randomized
